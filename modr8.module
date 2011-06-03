@@ -13,7 +13,7 @@
 define('NODE_BUILD_MODR8_TEASER', 1242526499);
 
 /**
- * Implementation of hook_help().
+ * Implements hook_help().
  */
 function modr8_help($path, $arg) {
   switch ($path) {
@@ -26,12 +26,12 @@ function modr8_help($path, $arg) {
 /**
  * An access function for Moderation Menu Tab
  */
-function modr8_moderation_access($nid) {
-  return user_access('moderate content') && db_result(db_query("SELECT COUNT(*) FROM {modr8_log} ml WHERE ml.nid = %d", $nid));
+function modr8_moderation_access($node) {
+  return user_access('moderate content') && db_query("SELECT COUNT(*) FROM {modr8_log} ml WHERE ml.nid = :nid", array(':nid' => $node->nid))->fetchField();
 }
 
 /**
- * Implementation of hook_menu().
+ * Implements hook_menu().
  */
 function modr8_menu() {
   $items = array();
@@ -43,6 +43,7 @@ function modr8_menu() {
     'access arguments' => array('moderate content'),
     'page callback' => 'modr8_page',
     'file' => 'modr8_admin.inc',
+    'type' => MENU_LOCAL_TASK,
   );
   $items['admin/reports/modr8'] = array(
     'title' => 'Content moderation log',
@@ -52,7 +53,7 @@ function modr8_menu() {
     'page callback' => 'modr8_log_view',
     'file' => 'modr8_admin.inc',
   );
-  $items['admin/settings/modr8'] = array(
+  $items['admin/config/system/modr8'] = array(
     'title' => 'Modr8 settings',
     'description' => 'Configure content moderation.',
     'page callback' => 'modr8_settings',
@@ -60,7 +61,7 @@ function modr8_menu() {
     'access arguments' => array('administer site configuration'),
     'file' => 'modr8_admin.inc',
   );
-  $items['node/%/modr8'] = array(
+  $items['node/%node/modr8'] = array(
     'title' => 'Moderation',
     'page callback' => 'modr8_log_view',
     'page arguments' => array('node', 1),
@@ -68,7 +69,7 @@ function modr8_menu() {
     'access arguments' => array(1),
     'file' => 'modr8_admin.inc',
     'weight' => 10,
-    'type' => MENU_LOCAL_TASK
+    'type' => MENU_LOCAL_TASK,
   );
   $items['node/%node/log/response/%'] = array(
     'title' => 'Moderation response',
@@ -107,10 +108,19 @@ function modr8_response_token($nid, $uid) {
 }
 
 /**
- * Implementation of hook_perm().
+ * Implements hook_permission().
  */
-function modr8_perm() {
-  return array('moderate content', 'bypass moderation queue');
+function modr8_permission() {
+  return array(
+    'moderate content' => array(
+      'title' => t('moderate content'),
+      'description' => t('TODO Add a description for \'moderate content\''),
+    ),
+    'bypass moderation queue' => array(
+      'title' => t('bypass moderation queue'),
+      'description' => t('TODO Add a description for \'bypass moderation queue\''),
+    ),
+  );
 }
 
 /**
@@ -122,54 +132,93 @@ function modr8_settings() {
 }
 
 /**
- * Implementation of hook_nodeapi().
+ * Implements hook_node_load().
  */
-function modr8_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
-  // add messages here..
-  switch ($op) {
-    case 'load':
-      return db_fetch_array(db_query('SELECT n.moderate FROM {node} n WHERE n.nid = %d', $node->nid));
-    case 'prepare':
-      if (!isset($node->nid)) {//a new node
-        $node_options = variable_get('node_options_'. $node->type, array('status', 'promote'));
-	$node->moderate = in_array('moderate', $node_options) && !user_access('bypass moderation queue');
+function modr8_node_load($nodes) {
+ $result = db_query('SELECT nid, moderate FROM {modr8_moderate} WHERE nid IN (:nids)', array(':nids' => array_keys($nodes)));
+  foreach ($result as $record) {
+    $nodes[$record->nid]->moderate = $record->moderate;
+  }
+  foreach ($nodes as &$node) {
+    if (! isset($node->moderate))
+      $node->moderate = false;
+  }
       }
-      break;
 
-    case 'submit':
-      if ($node->moderate && user_access('bypass moderation queue')) {
-        if (!user_access('administer nodes')) { // Don't reset for admins
-          $node->moderate = 0;
+/**
+ * Implements hook_node_prepare().
+ */
+function modr8_node_prepare($node) {
+  if (!isset($node->nid)) {
+    //a new node
+    $node_options = variable_get('node_options_' . $node->type, array('status', 'promote'));
+    $node->moderate = in_array('moderate', $node_options) && !user_access('bypass moderation queue');
         }
       }
-      break;
 
-    case 'view':
-      if ($node->moderate && empty($node->modr8_form_teaser) && ($node->build_mode == NODE_BUILD_NORMAL) && ($teaser || $page)) {
+/**
+ * Implements hook_node_view().
+ */
+function modr8_node_view($node, $view_mode = 'full', $langcode) {
+  if ($node->moderate && ($view_mode = 'full' || $view_mode == 'teaser')) {
         $node->content['modr8_message'] = array(
-          '#value' => theme('modr8_message', $teaser, $node->type, 'view'),
+      '#type' => 'markup',
+      '#markup' => theme('modr8_message', array('0' => $view_mode == 'teaser', '1' => $node->type, '2' => 'view')),
           '#weight' => -100,
         );
       }
-      break;
-    case 'update' :
-    case 'insert' :
-      db_query('UPDATE {node} SET moderate = %d WHERE nid = %d', $node->moderate, $node->nid);
-      if ($node->moderate) { //cut this?
-        theme('modr8_message', FALSE, $node->type, $op);
       }
-      break;
-    case 'delete':
-      // Delete log entries when a node is deleted, unless it's deleted while
-      // in moderation.  In the latter case, we want to retain the log to see
-      // which moderator deleted the node  and any message they sent.
-      if (!$node->moderate) {
-        db_query("DELETE FROM {modr8_log} WHERE nid = %d", $node->nid);
-      }
-      break;
+
+/**
+ * Implements hook_node_update().
+ */
+function modr8_node_update($node) {
+  db_delete('modr8_moderate')->condition('nid', $node->nid)->execute();
+  if ($node->moderate) {
+    db_insert('modr8_moderate')
+      ->fields(array(
+          'nid' => $node->nid,
+          'moderate' => $node->moderate,
+        ))
+      ->execute();
+    //cut this?
+    theme('modr8_message', array('0' => FALSE, '1' => $node->type, '2' => 'update'));
   }
 }
 
+/**
+ * Implements hook_node_insert().
+ */
+function modr8_node_insert($node) {
+  // We only put a node in moderation if explicitly set.
+  if ($node->moderate) {
+    db_insert('modr8_moderate')
+      ->fields(array(
+          'nid' => $node->nid,
+          'moderate' => $node->moderate,
+        ))
+      ->execute();
+    //cut this?
+    theme('modr8_message', array('0' => FALSE, '1' => $node->type, '2' => 'insert'));
+  }
+}
+
+/**
+ * Implements hook_node_delete().
+ */
+function modr8_node_delete($node) {
+      // Delete log entries when a node is deleted, unless it's deleted while
+      // in moderation.  In the latter case, we want to retain the log to see
+      // which moderator deleted the node  and any message they sent.
+  db_delete('modr8_log')
+    ->condition('nid', $node->nid)
+    ->execute();
+}
+
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_form_alter(&$form, $form_state, $form_id) {
 
   if (isset($form['type']['#value']) && $form['type']['#value'] .'_node_form' == $form_id)  {
@@ -179,7 +228,7 @@ function modr8_form_alter(&$form, $form_state, $form_id) {
       '#title' => t('In moderation queue'),
       '#default_value' => $form['#node']->moderate,
       '#weight' => 24,
-      '#description' => t('This %type will be placed in moderation if the %moderate checkbox is selected.', array('%type' => node_get_types('name', $form['#node']), '%moderate' => t('In moderation queue'))),
+      '#description' => t('This %type will be placed in moderation if the %moderate checkbox is selected.', array('%type' => node_type_get_name($form['#node']), '%moderate' => t('In moderation queue'))),
     );
     if (user_access('administer nodes')) {
       $form['options']['moderate'] = $moderate_checkbox;
@@ -194,7 +243,8 @@ function modr8_form_alter(&$form, $form_state, $form_id) {
       );
       if ($form['#node']->moderate) {
         $form['modr8_message'] = array(
-          '#value' => theme('modr8_message', FALSE, $form['#node']->type, 'node_form'),
+          '#type' => 'markup',
+          '#markup' => theme('modr8_message', array('0' => FALSE, '1' => $form['#node']->type, '2' => 'node_form')),
           '#weight' => -100,
         );
       }
@@ -206,7 +256,7 @@ function modr8_form_alter(&$form, $form_state, $form_id) {
 }
 
 /**
- * Implementation of hook_db_rewrite_sql().
+ * Implements hook_db_rewrite_sql().
  */
 function modr8_db_rewrite_sql($query, $primary_table, $primary_field, $args) {
   $node_table = $primary_table;
@@ -235,38 +285,47 @@ function modr8_db_rewrite_sql($query, $primary_table, $primary_field, $args) {
 }
 
 /**
- * Implementation of hook_cron().
+ * Implements hook_cron().
  *
  * Remove expired moderation log events.
  */
 function modr8_cron() {
   if ($log_clear = variable_get('modr8_log_clear', 0)) {
-    db_query('DELETE FROM {modr8_log} WHERE timestamp < %d', time() - $log_clear);
+    db_delete('modr8_log')
+      ->condition('timestamp', REQUEST_TIME - $log_clear, '<')
+      ->execute();
   }
 }
 
 /**
- * Implementation of hook_block().
+ * Implements hook_block_info().
  */
-function modr8_block($op = 'list', $delta = 0) {
-  if ($op == 'list') {
-    $blocks[0]['info'] = t("Modr8 moderator's block");
+function modr8_block_info() {
+  // TODO Rename block deltas (e.g. delta-0) to readable strings.
+  if (TRUE) {
+    $blocks['delta-0']['info'] = t("Modr8 moderator's block");
     $blocks['modr8-moderators']['info'] = t("Modr8 moderators credit list");
-    $blocks['modr8-moderators']['cache'] = BLOCK_CACHE_GLOBAL;
+    $blocks['modr8-moderators']['cache'] = DRUPAL_CACHE_GLOBAL;
     return $blocks;
   }
-  elseif ($op == 'view') {
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function modr8_block_view($delta) {
+  if (TRUE) {
     if ($delta == 'modr8-moderators') {
       $block = array();
       $cutoff = strtotime('now -6 months');
-      $result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != 'Response' AND ml.timestamp > %d AND u.status = 1 GROUP BY u.uid ORDER BY number DESC", $cutoff, 0, variable_get('modr8_top_moderators_limit', 10));
+      $result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :ml.action AND ml.timestamp > :ml.timestamp AND u.status = :u.status GROUP BY u.uid ORDER BY number DESC", array(':ml.action' => 'Response', ':ml.timestamp' => $cutoff, ':u.status' => 1));
       $header = array(t('User'), t('Number of actions'));
       $rows = array();
       while ($account = db_fetch_object($result)) {
-        $rows[] = array(theme('username', $account), $account->number);
+        $rows[] = array(theme('username', array('account' => $account)), $account->number);
       }
       if ($rows) {
-        $block['content'] = t('Last 6 months:') . '<br />' . theme('table', $header, $rows);
+        $block['content'] = t('Last 6 months:') . '<br />' . theme('table', array('header' => $header, 'rows' => $rows));
         $block['subject'] = t('Top moderators');
       }
       return $block;
@@ -278,11 +337,13 @@ function modr8_block($op = 'list', $delta = 0) {
         // Users who don't have the 'administer nodes' permission can only see published nodes.
         $is_published = 'n.status = 1 AND ';
       }
-      $count = db_result(db_query(db_rewrite_sql('SELECT COUNT(*) FROM {node} n WHERE '. $is_published .' n.moderate = 1')));
+      // TODO Please convert this statement to the D7 database API syntax.
+      $count = db_query(db_rewrite_sql('SELECT COUNT(*) FROM {node} n WHERE ' . $is_published . ' n.moderate = 1'))->fetchField();
       $content = '<p>'. l(t('@items in moderation', array('@items' => format_plural($count, '1 post', '@count posts'))), 'admin/content/modr8') .'</p>';
       if ($count) {
         $sql = db_rewrite_sql('SELECT n.nid, n.title FROM {node} n WHERE '. $is_published .' n.moderate = 1 ORDER BY n.changed DESC');
-        $result = db_query_range($sql, 0, 6);
+        // TODO Please convert this statement to the D7 database API syntax.
+        $result = db_query_range($sql);
         $content .= node_title_list($result, t('Recent additions:'));
       }
       $block['content'] = $content;
@@ -290,22 +351,31 @@ function modr8_block($op = 'list', $delta = 0) {
     }
   }
 }
-/**
- * Implementation of hook_theme().
- */
-function modr8_theme() {
-  return array(
-    'modr8_message' => array('arguments' => array('teaser', 'nodetype', 'op')),
-    'modr8_form' => array('arguments' => array('form')),
-    'moderation_event' => array('arguments' => array('event')),
-    'modr8_note' => array('arguments' => array('note')),
 
+/**
+ * Implements hook_block().
+ */
+function modr8_block_OLD($op = 'list', $delta = 0) { }
+
+
+/**
+ * Implements hook_theme().
+ */
+function modr8_theme($existing, $type, $theme, $path) {
+  return array(
+    'modr8_message' => array('variables' => array('teaser', 'nodetype', 'op')),
+    'modr8_form' => array('render element' => 'form'),
+    'moderation_event' => array('variables' => array('event')),
+    'modr8_note' => array('variables' => array('note')),
   );
 }
 /**
  * Theming function for messages.
  */
-function theme_modr8_message($teaser = FALSE, $nodetype = 'page', $op = 'view') {
+function theme_modr8_message($variables) {
+  $teaser = $variables['0'];
+  $nodetype = $variables['1'];
+  $op = $variables['2'];
   static $already_messaged = FALSE;
   // Don't add the message more than once per page load.
   if ($already_messaged) {
@@ -321,7 +391,7 @@ function theme_modr8_message($teaser = FALSE, $nodetype = 'page', $op = 'view') 
         break;
       case 'node_form':
         if (!user_access('bypass moderation queue')) {
-          drupal_set_message(t('This %type will be submitted for moderation and will not be accessible to other users until it has been approved.', array('%type' => node_get_types('name', $nodetype))));
+          drupal_set_message(t('This %type will be submitted for moderation and will not be accessible to other users until it has been approved.', array('%type' => node_type_get_name($nodetype))));
         }
         break;
     }

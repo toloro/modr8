@@ -1,6 +1,6 @@
 $Id: README.txt,v 1.8 2008/09/05 01:13:10 pwolanin Exp $
 
-Modr8 module for Drupal 6.x.
+Modr8 module for Drupal 7.x.
 
 The moderation of content was removed from core in 5.x.  This module adds back
 that capability and also prevents posts that are in moderation from showing
@@ -22,14 +22,14 @@ The admin interface allows a user with the "moderate content" permission to
 preview content in moderation, as well as approve or delete each moderated post,
 and (optionally) to send an e-mail to the author informing him/her of the choice.
 *Important note:* as of version 5.x-2.3 unpublished nodes in the WILL be shown
-in the moderation queue listing for users with the "adminiser nodes" permission.
-For these users, approving a post in the queue will also publish it. However,
-posts to be moderated should generally be set to be published so that users
-without the "administer nodes" permission can also effectively work as
-moderators.
+in the moderation queue listing for users with the "administer nodes"
+permission. For these users, approving a post in the queue will also publish it.
+However, posts to be moderated should generally be set to be published
+so that users without the "administer nodes" permission can also
+effectively work as moderators.
 
 Visit the settings page to customize the e-mail messages and set other defaults
-(path: admin/settings/modr8).
+(path: admin/config/system/modr8).
 
 As of version 5.x-2.0, modr8 also includes a moderation log to record the
 actions of moderators on items in the moderation queue.  This may be especially
@@ -47,3 +47,4 @@ This module was originally written for Drupal 4.7.x by Jeff Robbins
 (jjeff@drupal).  Upgrade to 5.x and 5.x, 6.x maintenance by 
 Peter Wolanin (pwolanin@drupal).
 Initial upgrade to 6.x by Croitor Alexander (Placinta@drupal)
+Initial upgrade to 7.x by Berend de Boer (berend@pobox.com).

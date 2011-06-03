@@ -1,6 +1,10 @@
 <?php
 // $Id: modr8_admin.inc,v 1.31 2010/04/02 03:11:13 pwolanin Exp $
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_settings_form($form_state) {
 
   $form['modr8_default_option'] = array(
@@ -27,7 +31,7 @@ function modr8_settings_form($form_state) {
     '#title' => t('Discard log entries older than'),
     '#default_value' => variable_get('modr8_log_clear', 0),
     '#options' => $period,
-    '#description' => t('The time log entries should be kept. Older entries will be automatically discarded. Requires crontab.')
+    '#description' => t('The time log entries should be kept. Older entries will be automatically discarded. Requires crontab.'),
   );
   $form['text'] = array(
     '#type' => 'fieldset',
@@ -37,7 +41,7 @@ function modr8_settings_form($form_state) {
   $form['text']['modr8_email_from'] = array(
     '#type' => 'textfield',
     '#title' => t('Moderator email address'),
-    '#description' => t('E-mail notices sent by modr8 will have this as the "From" address. Leave empty to use same "From" address  as is used for user registration other administrative notices as set at <a href="@site-info">Site information</a>.', array('@site-info' => url('admin/settings/site-information'))),
+    '#description' => t('E-mail notices sent by modr8 will have this as the "From" address. Leave empty to use same "From" address  as is used for user registration other administrative notices as set at <a href="@site-info">Site information</a>.', array('@site-info' => url('admin/config/site-information'))),
     '#default_value' => variable_get('modr8_email_from', ''),
   );
 
@@ -110,6 +114,10 @@ function modr8_settings_form($form_state) {
   return system_settings_form($form);
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_settings_validate($form, &$form_state) {
   if ($form_state['values']['modr8_email_from'] && !valid_email_address($form_state['values']['modr8_email_from'])) {
     form_set_error('modr8_email_from', t('You must either enter a valid e-mail address, or leave the moderator e-mail field empty.'));
@@ -121,16 +129,20 @@ function modr8_settings_validate($form, &$form_state) {
  */
 function modr8_response_page($node) {
   if ($node->moderate) {
-    drupal_set_title(t('Submit response regarding %title', array('%title' => $node->title)));
+    drupal_set_title(t('Submit response regarding %title', array('%title' => $node->title)), PASS_THROUGH);
     return drupal_get_form('modr8_response_form', $node);
   }
   else {
-    drupal_set_title(t('The moderator already approved %title', array('%title' => $node->title)));
+    drupal_set_title(t('The moderator already approved %title', array('%title' => $node->title)), PASS_THROUGH);
     return '<p>'. t('This post has already been approved by the moderator. No response is needed.') .'</p>';
   }
 }
 
-function modr8_response_form($form_state, $node) {
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
+function modr8_response_form($form, $form_state, $node) {
   $form = array();
   $form['title'] = array(
     '#type' => 'textfield',
@@ -151,10 +163,11 @@ function modr8_response_form($form_state, $node) {
     '#value' => t('Submit'),
     '#weight' => 5,
   );
-  // This flag can be used by modr8, or other modules to change the teaser specifically
-  // for when it's being shown in the moderation list.
+  // This flag can be used by modr8, or other modules to change the
+  // teaser specifically for when it's being shown in the moderation
+  // list.
   $node->modr8_form_teaser = TRUE;
-  $teaser = node_view($node, TRUE, FALSE, FALSE);
+  $teaser = drupal_render (node_view($node, 'teaser'));
   $form['preview'] = array(
     '#type' => 'value',
     '#value' => $teaser,
@@ -194,27 +207,42 @@ function modr8_page() {
     // Users who don't have the 'administer nodes' permission can only see published nodes.
     $is_published = 'n.status = 1 AND ';
   }
-  $count_sql = db_rewrite_sql('SELECT COUNT(*) FROM {node} n WHERE '. $is_published .' n.moderate = 1');
-  $page_sql = db_rewrite_sql('SELECT n.nid, n.changed FROM {node} n WHERE '. $is_published .' n.moderate = 1 ORDER BY n.changed DESC');
-  $result = pager_query($page_sql, variable_get('modr8_nodes_per_page', 10), 0, $count_sql);
-  $output = '<p>'. l(t('Show log of all actions on moderated content.'), 'admin/reports/modr8') .'</p>';
+  $qry = db_select('modr8_moderate', 'm')
+    ->extend('PagerDefault')
+    ->limit(variable_get('modr8_nodes_per_page', 10))
+    ->fields ('n', array ('nid', 'changed'))
+    ->condition('m.moderate', 1);
+  $qry->join('node', 'n', 'n.nid = m.nid');
+  $result = $qry->execute()->fetchAll();
+
+  $output['header'] = array (
+    '#type' => 'markup',
+    '#markup' => '<p>' . l(t('Show log of all actions on moderated content.'), 'admin/reports/modr8') . '</p>',
+  );
 
   $nid_list = array();
-  while ($r = db_fetch_object($result)) {
+  foreach ($result as $r) {
     $nid_list[] = $r->nid;
   }
   if ($nid_list) {
-    $output .= drupal_get_form('modr8_form', $nid_list);
-    $output .= theme('pager');
-
+    $output['form'] = drupal_get_form('modr8_form', $nid_list);
+    // TODO Please change this theme call to use an associative array for the $variables parameter.
+    //$output .= theme('pager');
   }
   else {
-    $output .= '<p>'. t('@items in moderation', array('@items' => format_plural(0, '1 post', '@count posts'))) .'</p>';
+    $output['footer'] = array (
+      '#type' => 'markup',
+      '#markup' => '<p>'. t('@items in moderation', array('@items' => format_plural(0, '1 post', '@count posts'))) .'</p>',
+    );
   }
   return $output;
 }
 
-function modr8_form($form_state, $nid_list = array()) {
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
+function modr8_form($form, $form_state, $nid_list = array()) {
   $form = array(
     '#theme' => 'modr8_form',
     '#tree' => TRUE,
@@ -227,7 +255,7 @@ function modr8_form($form_state, $nid_list = array()) {
     // for when it's being shown in the moderation list.
     $node->modr8_form_teaser = TRUE;
     $node->build_mode = NODE_BUILD_MODR8_TEASER;
-    $teaser = node_view($node, TRUE, FALSE, FALSE);
+    $teaser = drupal_render (node_view($node, 'teaser'));
 
     $form[$node->nid] = array(
       '#tree' => TRUE,
@@ -257,11 +285,11 @@ function modr8_form($form_state, $nid_list = array()) {
     );
 
     $log_link = '';
-    $events = db_query("SELECT modid FROM {modr8_log} WHERE nid = %d", $node->nid);
-    $count = db_result(db_query("SELECT COUNT(modid) FROM {modr8_log} WHERE nid = %d", $node->nid));
+    $events = db_query("SELECT modid FROM {modr8_log} WHERE nid = :nid", array(':nid' => $node->nid));
+    $count = db_query("SELECT COUNT(modid) FROM {modr8_log} WHERE nid = :nid", array(':nid' => $node->nid))->fetchField();
     if ($count) {
       if ($count == 1) {
-        $url = 'admin/reports/modr8/event/'. db_result($events);
+        $url = 'admin/reports/modr8/event/' . $events->fetchField();
       }
       else {
         $url = 'node/'. $node->nid .'/modr8/';
@@ -270,7 +298,8 @@ function modr8_form($form_state, $nid_list = array()) {
       $log_link .= l($message, $url);
     }
     $form[$node->nid]['log_link'] = array(
-      '#value' => $log_link,
+      '#type' => 'markup',
+      '#markup' => $log_link,
     );
     $form[$node->nid]['author_uid'] = array(
       '#type' => 'value',
@@ -283,7 +312,7 @@ function modr8_form($form_state, $nid_list = array()) {
 
     $form[$node->nid]['type'] = array(
       '#type' => 'value',
-      '#value' => node_get_types('name', $node),
+      '#value' => node_type_get_name($node),
     );
   }
   $form['submit'] = array(
@@ -297,11 +326,13 @@ function modr8_form($form_state, $nid_list = array()) {
 /**
  * Themes the content moderation form.
  */
-function theme_modr8_form($form) {
+function theme_modr8_form($variables) {
+  $form = $variables['form'];
   $headers = array(
     t('Operations'),
-    t('Content')
+    t('Content'),
   );
+  $rows = array();
   foreach (element_children($form) as $key) {
     // Only do this for nodes; not the submit button.
     if (is_numeric($key)) {
@@ -312,13 +343,11 @@ function theme_modr8_form($form) {
       }
       $row[] = array(
         'data' => drupal_render($form[$key]['ops']) . $note_field,
-        'style' => 'vertical-align:top;'
+        'style' => 'vertical-align:top;',
       );
-      // Apply extra filtering to insure we don't have nested form elements,
-      // unexpected script, etc.
-      $preview = filter_xss_admin($form[$key]['preview']['#value']);
+      $preview = $form[$key]['preview']['#value'];
 
-      if (!empty($form[$key]['log_link']['#value'])) {
+      if (!empty($form[$key]['log_link']['#markup'])) {
         $preview .= '<div><em>'. drupal_render($form[$key]['log_link']) .'</em></div>';
       }
       $row[] = array(
@@ -328,8 +357,8 @@ function theme_modr8_form($form) {
       $rows[] = $row;
     }
   }
-  $output = theme('table', $headers, $rows);
-  $output .= drupal_render($form);
+  $output = theme('table', array('header' => $headers, 'rows' => $rows));
+  $output .= drupal_render_children($form);
 
   return $output;
 }
@@ -372,16 +401,42 @@ function modr8_form_submit($form, &$form_state) {
   }
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_log_action($op, $nid, $values, $message) {
   global $user;
-  $actions = array('approve' => 'Approve', 'delete' => 'Delete', 'nada' => 'No action', 'response' => 'Response');
+  $actions = array(
+    'approve' => 'Approve',
+    'delete' => 'Delete',
+    'nada' => 'No action',
+    'response' => 'Response',
+  );
 
-  db_query("INSERT INTO {modr8_log} (nid, uid, author_uid, action, title, message, teaser, timestamp) VALUES (%d, %d, %d, '%s', '%s', '%s', '%s', %d)", $nid, $user->uid, $values['author_uid'], $actions[$op], $values['title'], $message, $values['preview'], time());
+  // TODO Please review the conversion of this statement to the D7 database API syntax.
+  /* db_query("INSERT INTO {modr8_log} (nid, uid, author_uid, action, title, message, teaser, timestamp) VALUES (%d, %d, %d, '%s', '%s', '%s', '%s', %d)", $nid, $user->uid, $values['author_uid'], $actions[$op], $values['title'], $message, $values['preview'], REQUEST_TIME) */
+  $id = db_insert('modr8_log')
+  ->fields(array(
+    'nid' => $nid,
+    'uid' => $user->uid,
+    'author_uid' => $values['author_uid'],
+    'action' => $actions[$op],
+    'title' => $values['title'],
+    'message' => $message,
+    'teaser' => $values['preview'],
+    'timestamp' => REQUEST_TIME,
+  ))
+  ->execute();
   // Notify modules interested in each action we took.
   // modules have to implement the function: hook_modr8_log ( $op ,$nid , $values, $message);
   module_invoke_all('modr8_log', $op, $nid, $values, $message);
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_usermail($op, $nid, $values) {
   $node = node_load($nid);
 
@@ -406,9 +461,9 @@ function modr8_usermail($op, $nid, $values) {
     }
 
     // get the user info for author
-    $account = user_load(array('uid' => $node->uid));
+    $account = user_load($node->uid);
 
-    $note = theme('modr8_note', $values['note']);
+    $note = theme('modr8_note', array('0' => $values['note']));
 
     $sendmail_from = '';
     $site_mail = variable_get('modr8_email_from', '');
@@ -417,11 +472,17 @@ function modr8_usermail($op, $nid, $values) {
       $site_mail = variable_get('site_mail', $sendmail_from);
     }
     if (empty($site_mail) || $site_mail == $sendmail_from) {
-      drupal_set_message(t('You should create an administrator mail address for your site! <a href="@url">Do it here</a>.', array('@url' => url('admin/settings/site-information'))), 'error');
+      drupal_set_message(t('You should create an administrator mail address for your site! <a href="@url">Do it here</a>.', array('@url' => url('admin/config/site-information'))), 'error');
     }
     // send the email
     $language = user_preferred_language($account);
-    $params = array('account' => $account, 'node' => $node, 'subject' => $subject, 'message' => $message, 'note' => $note);
+    $params = array(
+      'account' => $account,
+      'node' => $node,
+      'subject' => $subject,
+      'message' => $message,
+      'note' => $note,
+    );
 
     if ($account->uid == 0) {
       $message = t('Anonymous user; no %type message was sent.', array('%type' => $optype));
@@ -446,7 +507,7 @@ function modr8_usermail($op, $nid, $values) {
 }
 
 /**
- * Implementation of hook_mail()
+ * Implements hook_mail().
  */
 function modr8_mail($key, &$message, $params) {
   $language = $message['language'];
@@ -468,7 +529,12 @@ function modr8_mail($key, &$message, $params) {
   }
 }
 
-function theme_modr8_note($note) {
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
+function theme_modr8_note($variables) {
+  $note = $variables['0'];
   if ($note) {
     // Do not filter here (use !) since this note is sanitized after e-mailing
     $note = t("Note:
@@ -477,6 +543,10 @@ function theme_modr8_note($note) {
   return $note;
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_replacements() {
   return array(
     '%title' => '$node->title',
@@ -497,6 +567,10 @@ function modr8_replacements() {
   );
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_accept_default() {
   return t(
 'Your %type entry entitled "%title" has been approved by our content moderator! Other visitors to %site will now be able to view it.
@@ -509,6 +583,10 @@ Regards,
 The %site team');
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_denial_default() {
   return t(
 'Your %type entry entitled "%title" has been denied by our content moderator. The content has been deleted from our site.
@@ -519,6 +597,10 @@ Regards,
 The %site team');
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_noact_default() {
   return t(
 'Your %type entry entitled "%title" has been reviewed by our content moderator, but not yet approved.
@@ -546,7 +628,7 @@ function modr8_log_view($op = '', $id = 0) {
       if (is_numeric($id)) {
         $node = node_load($id);
         if (!empty($node->title)) {
-          drupal_set_title(check_plain($node->title));
+          drupal_set_title($node->title);
         }
         return modr8_log_overview($id);
       }
@@ -562,12 +644,23 @@ function modr8_log_view($op = '', $id = 0) {
   drupal_not_found();
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_log_overview($nid = 0) {
 
   $header = array(
-    array('data' => t('Action'), ),
-    array('data' => t('User'), 'field' => 'u.name'),
-    array('data' => t('Date'), 'field' => 'ml.modid', 'sort' => 'desc'),
+    array('data' => t('Action')),
+    array(
+      'data' => t('User'),
+      'field' => 'u.name',
+    ),
+    array(
+      'data' => t('Date'),
+      'field' => 'ml.modid',
+      'sort' => 'desc',
+    ),
     array('data' => t('Title (view event)')),
   );
   $tablesort = tablesort_sql($header);
@@ -585,52 +678,83 @@ function modr8_log_overview($nid = 0) {
   $rows = array();
 
   while ($event = db_fetch_object($result)) {
-    $rows[] = array(t($event->action), theme('username', $event), format_date($event->timestamp, 'small'),
-    l(truncate_utf8($event->title, 50, TRUE, TRUE), 'admin/reports/modr8/event/'. $event->modid, array(), NULL, NULL, FALSE, TRUE)
+    $rows[] = array(
+      t($event->action),
+      theme('username', array('account' => $event)),
+      format_date($event->timestamp, 'short'),
+      l(truncate_utf8($event->title, 50, TRUE, TRUE), 'admin/reports/modr8/event/' . $event->modid, array(), NULL, NULL, FALSE, TRUE),
     );
   }
 
   if (!$rows) {
-    $rows[] = array(array('data' => t('No log messages available.'), 'colspan' => 4));
+    $rows[] = array(array(
+        'data' => t('No log messages available.'),
+        'colspan' => 4,
+      ));
   }
   $output = '';
-  $output .= theme('table', $header, $rows);
-  $output .= theme('pager', NULL, 50, 0);
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
+  $output .= theme('pager', array('tags' => NULL, 'element' => 0));
 
   return $output;
 }
 
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
 function modr8_log_event($modid) {
 
   if (is_numeric($modid)) {
     $sql = db_rewrite_sql("SELECT ml.*, u.name FROM {modr8_log} ml LEFT JOIN {users} u ON u.uid = ml.uid WHERE ml.modid = %d", 'ml');
+    // TODO Please convert this statement to the D7 database API syntax.
     $event = db_fetch_object(db_query($sql, $modid));
     if ($event) {
-      $event->author = db_fetch_object(db_query("SELECT u.name, u.uid from {users} u WHERE u.uid = %d", $event->author_uid));
-      return theme('moderation_event', $event);
+      $event->author = db_fetch_object(db_query("SELECT u.name, u.uid from {users} u WHERE u.uid = :u.uid", array(':u.uid' => $event->author_uid)));
+      return theme('moderation_event', array('0' => $event));
     }
   }
 
   drupal_not_found();
 }
 
-function theme_moderation_event($event) {
+/**
+ * @todo Please document this function.
+ * @see http://drupal.org/node/1354
+ */
+function theme_moderation_event($variables) {
+  $event = $variables['0'];
 
-  $rows[] = array(array('data' => l(t('Overview of all moderation log events for this post'), 'node/'. $event->nid .'/modr8/'), 'colspan' => 2));
+  $rows[] = array(array(
+      'data' => l(t('Overview of all moderation log events for this post'), 'node/' . $event->nid . '/modr8/'),
+      'colspan' => 2,
+    ));
   $rows[] = array(t('Action:'), t($event->action));
-  $rows[] = array(t('Date:'), format_date($event->timestamp, 'small'));
+  $rows[] = array(t('Date:'), format_date($event->timestamp, 'short'));
   if ($event->action == 'Response') {
-    $rows[] = array(t('Author:'), theme('username', $event));
+    $rows[] = array(t('Author:'), theme('username', array('account' => $event)));
     $rows[] = array(t('Response title:'), $event->title);
-    $rows[] = array('data' => array(t('Response message:'), $event->message), 'style' => 'vertical-align:top;');
-    $rows[] = array('data' => array(t('Teaser (as of response):'), $event->teaser), 'style' => 'vertical-align:top;');
+    $rows[] = array(
+      'data' => array(t('Response message:'), $event->message),
+      'style' => 'vertical-align:top;',
+    );
+    $rows[] = array(
+      'data' => array(t('Teaser (as of response):'), $event->teaser),
+      'style' => 'vertical-align:top;',
+    );
   }
   else {
-    $rows[] = array(t('Moderator:'), theme('username', $event));
-    $rows[] = array('data' => array(t('E-mail message:'), $event->message), 'style' => 'vertical-align:top;');
-    $rows[] = array(t('Author:'), theme('username', $event->author));
-    $rows[] = array('data' => array(t('Teaser (as reviewed):'), $event->teaser), 'style' => 'vertical-align:top;');
+    $rows[] = array(t('Moderator:'), theme('username', array('account' => $event)));
+    $rows[] = array(
+      'data' => array(t('E-mail message:'), $event->message),
+      'style' => 'vertical-align:top;',
+    );
+    $rows[] = array(t('Author:'), theme('username', array('account' => $event->author)));
+    $rows[] = array(
+      'data' => array(t('Teaser (as reviewed):'), $event->teaser),
+      'style' => 'vertical-align:top;',
+    );
   }
 
-  return theme('table', NULL, $rows);
+  return theme('table', array('header' => NULL, 'rows' => $rows));
 }
