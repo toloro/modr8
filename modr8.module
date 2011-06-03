@@ -317,8 +317,8 @@ function modr8_block_view($delta) {
   if (TRUE) {
     if ($delta == 'modr8-moderators') {
       $block = array();
-      $cutoff = strtotime('now -6 months');
-      $result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :ml.action AND ml.timestamp > :ml.timestamp AND u.status = :u.status GROUP BY u.uid ORDER BY number DESC", array(':ml.action' => 'Response', ':ml.timestamp' => $cutoff, ':u.status' => 1));
+      $cutoff = strtotime('now -6 months');// tjs-lt 2011June03  Removed prefixes from placeholders in db query below.
+      $result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :action AND ml.timestamp > :timestamp AND u.status = :status GROUP BY u.uid ORDER BY number DESC", array(':action' => 'Response', ':timestamp' => $cutoff, ':status' => 1));//$result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :ml.action AND ml.timestamp > :ml.timestamp AND u.status = :u.status GROUP BY u.uid ORDER BY number DESC", array(':ml.action' => 'Response', ':ml.timestamp' => $cutoff, ':u.status' => 1));
       $header = array(t('User'), t('Number of actions'));
       $rows = array();
       while ($account = db_fetch_object($result)) {

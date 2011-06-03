@@ -668,12 +668,12 @@ function modr8_log_overview($nid = 0) {
   $count_sql = "SELECT COUNT(*) FROM {modr8_log} ml";
   $pager_sql = "SELECT ml.modid, ml.action, ml.title, ml.timestamp, u.name, u.uid FROM {modr8_log} ml LEFT JOIN {users} u ON u.uid = ml.uid";
   if ($nid) {
-    $count_sql .= " WHERE ml.nid = %d";
-    $pager_sql .= " WHERE ml.nid = %d";
+    $count_sql .= " WHERE ml.nid = %d";//tjs-lt 2011June03 need to update with new placeholder (:nid)
+    $pager_sql .= " WHERE ml.nid = %d";//tjs-lt 2011June03 need to update with new placeholder (:nid)
   }
   $count_sql = db_rewrite_sql($count_sql, 'ml');
   $pager_sql = db_rewrite_sql($pager_sql, 'ml');
-  $result = pager_query($pager_sql . $tablesort, 50, 0, $count_sql, $nid);
+  $result = pager_query($pager_sql . $tablesort, 50, 0, $count_sql, $nid);//tjs-lt  2011June03 include array (':nid'=> $nid)?
 
   $rows = array();
 
@@ -708,9 +708,9 @@ function modr8_log_event($modid) {
   if (is_numeric($modid)) {
     $sql = db_rewrite_sql("SELECT ml.*, u.name FROM {modr8_log} ml LEFT JOIN {users} u ON u.uid = ml.uid WHERE ml.modid = %d", 'ml');
     // TODO Please convert this statement to the D7 database API syntax.
-    $event = db_fetch_object(db_query($sql, $modid));
-    if ($event) {
-      $event->author = db_fetch_object(db_query("SELECT u.name, u.uid from {users} u WHERE u.uid = :u.uid", array(':u.uid' => $event->author_uid)));
+    $event = db_fetch_object(db_query($sql, $modid));//tjs-lt 2011June03  Should be?  db_query($sql, array(':modid' =>$modid)
+    if ($event) {//tjs-lt 2011June03  Removed prefix from placeholders
+      $event->author = db_fetch_object(db_query("SELECT u.name, u.uid from {users} u WHERE u.uid = :uid", array(':uid' => $event->author_uid)));
       return theme('moderation_event', array('0' => $event));
     }
   }
