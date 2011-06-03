@@ -1,5 +1,5 @@
 <?php
-// $Id: modr8.module,v 1.32.2.1 2010/04/02 21:33:09 pwolanin Exp $
+// $Id: modr8.module,v 1.32.2.1 2010/04/02 21:33:09 pwolanin Exp $  //Line 2: Commits to the Git repository do not require the CVS $Id$ keyword in each file.
 
 /**
  * @file
@@ -17,8 +17,8 @@ define('NODE_BUILD_MODR8_TEASER', 1242526499);
  */
 function modr8_help($path, $arg) {
   switch ($path) {
-    case 'admin/help#modr8':
-      return '<p>'. t("Easy, dedicated moderation of content. Assign the 'moderate content' permission to one or mode user roles. Set up the default moderation option for each node type.") .'</p>';
+    case 'admin/help#modr8'://lt-tjs 2011June02 Coder:  Line 21: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
+      return '<p>' . t("Easy, dedicated moderation of content. Assign the 'moderate content' permission to one or mode user roles. Set up the default moderation option for each node type.") . '</p>';
     // OPTIONAL: Add additional cases for other paths that should display help text.
   }
 }
@@ -26,7 +26,7 @@ function modr8_help($path, $arg) {
 /**
  * An access function for Moderation Menu Tab
  */
-function modr8_moderation_access($node) {
+function modr8_moderation_access($node) {//Line 30: You may not want to use SELECT COUNT(*), if all you want to do is check for the existance of any rows, rather than the actualy numer of rows.
   return user_access('moderate content') && db_query("SELECT COUNT(*) FROM {modr8_log} ml WHERE ml.nid = :nid", array(':nid' => $node->nid))->fetchField();
 }
 
@@ -98,12 +98,12 @@ function modr8_response_access($node, $token) {
  * Calculates a HMAC-MD5 according to RFC2104 (http://www.ietf.org/rfc/rfc2104.txt).
  */
 function modr8_response_token($nid, $uid) {
-  $key = md5(drupal_get_private_key() .'modr8token');
+  $key = md5(drupal_get_private_key() . 'modr8token');//lt-tjs 2011June02 Line 101: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
 
   return bin2hex(
     pack("H*", md5((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x5c), 64))) .
     pack("H*", md5((str_pad($key, 64, chr(0x00)) ^ (str_repeat(chr(0x36), 64))) .
-    $nid .':'. $key .':'. $uid))))
+    $nid . ':' . $key . ':' . $uid))))//lt-tjs 2011June02 Line 106: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
   );
 }
 
@@ -134,14 +134,14 @@ function modr8_settings() {
 /**
  * Implements hook_node_load().
  */
-function modr8_node_load($nodes) {
- $result = db_query('SELECT nid, moderate FROM {modr8_moderate} WHERE nid IN (:nids)', array(':nids' => array_keys($nodes)));
+function modr8_node_load($nodes) {//lt-tjs 2011June02 Coder:  Line 138: Use an indent of 2 spaces, with no tabs
+  $result = db_query('SELECT nid, moderate FROM {modr8_moderate} WHERE nid IN (:nids)', array(':nids' => array_keys($nodes)));
   foreach ($result as $record) {
     $nodes[$record->nid]->moderate = $record->moderate;
   }
   foreach ($nodes as &$node) {
     if (! isset($node->moderate))
-      $node->moderate = false;
+      $node->moderate = FALSE;//lt-tjs 2011June02  Line 144: Use uppercase for PHP constants, e.g. NULL, TRUE, FALSE
   }
       }
 
@@ -220,8 +220,8 @@ function modr8_node_delete($node) {
  * @see http://drupal.org/node/1354
  */
 function modr8_form_alter(&$form, $form_state, $form_id) {
-
-  if (isset($form['type']['#value']) && $form['type']['#value'] .'_node_form' == $form_id)  {
+  //lt-tjs 2011June02 Coder:  Line 224: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
+  if (isset($form['type']['#value']) && $form['type']['#value'] . '_node_form' == $form_id)  {
 
     $moderate_checkbox = array(
       '#type' => 'checkbox',
@@ -274,8 +274,8 @@ function modr8_db_rewrite_sql($query, $primary_table, $primary_field, $args) {
         if ($user->uid == 0) {
           $return['where'] = "($node_table.moderate != 1)";
         }
-        else {
-          $return['where'] = "($node_table.moderate != 1 OR $node_table.uid = ". (int)$user->uid .")";
+        else {//lt-tjs 2011June02 Coder:  Line 278: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
+          $return['where'] = "($node_table.moderate != 1 OR $node_table.uid = " . (int)$user->uid . ")";
         }
         return $return;
       }
@@ -339,9 +339,9 @@ function modr8_block_view($delta) {
       }
       // TODO Please convert this statement to the D7 database API syntax.
       $count = db_query(db_rewrite_sql('SELECT COUNT(*) FROM {node} n WHERE ' . $is_published . ' n.moderate = 1'))->fetchField();
-      $content = '<p>'. l(t('@items in moderation', array('@items' => format_plural($count, '1 post', '@count posts'))), 'admin/content/modr8') .'</p>';
-      if ($count) {
-        $sql = db_rewrite_sql('SELECT n.nid, n.title FROM {node} n WHERE '. $is_published .' n.moderate = 1 ORDER BY n.changed DESC');
+      $content = '<p>' . l(t('@items in moderation', array('@items' => format_plural($count, '1 post', '@count posts'))), 'admin/content/modr8') . '</p>'; //lt-tjs 2011June02 Coder:  Line 342: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
+      if ($count) { //lt-tjs 2011June02 Coder:  Line 343: There should be no trailing spaces
+        $sql = db_rewrite_sql('SELECT n.nid, n.title FROM {node} n WHERE ' . $is_published . ' n.moderate = 1 ORDER BY n.changed DESC'); //Line 344: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
         // TODO Please convert this statement to the D7 database API syntax.
         $result = db_query_range($sql);
         $content .= node_title_list($result, t('Recent additions:'));
@@ -382,7 +382,7 @@ function theme_modr8_message($variables) {
     return;
   }
   if ($teaser) {
-    return ' <div class="marker">'. t('Pending moderation') .'</div>';
+    return ' <div class="marker">' . t('Pending moderation') . '</div>';//lt-tjs 2011June02 Coder:  severity: normalLine 385: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
   }
   else {
     switch ($op) {

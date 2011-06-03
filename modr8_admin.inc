@@ -1,5 +1,5 @@
 <?php
-// $Id: modr8_admin.inc,v 1.31 2010/04/02 03:11:13 pwolanin Exp $
+// $Id: modr8_admin.inc,v 1.31 2010/04/02 03:11:13 pwolanin Exp $ //Line -1: @file block missing  //Line 2: Commits to the Git repository do not require the CVS $Id$ keyword in each file.
 
 /**
  * @todo Please document this function.
@@ -134,7 +134,7 @@ function modr8_response_page($node) {
   }
   else {
     drupal_set_title(t('The moderator already approved %title', array('%title' => $node->title)), PASS_THROUGH);
-    return '<p>'. t('This post has already been approved by the moderator. No response is needed.') .'</p>';
+    return '<p>' . t('This post has already been approved by the moderator. No response is needed.') . '</p>';// lt-tjs 2011June02 Line 137: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
   }
 }
 
@@ -160,14 +160,14 @@ function modr8_response_form($form, $form_state, $node) {
   );
   $form['buttons']['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Submit'),
+    '#value' => t('Submit'),//lt-tjs 2011June02 Coder:  Line 163: When labelling buttons, make it clear what the button does, "Submit" is too generic.
     '#weight' => 5,
   );
   // This flag can be used by modr8, or other modules to change the
   // teaser specifically for when it's being shown in the moderation
   // list.
   $node->modr8_form_teaser = TRUE;
-  $teaser = drupal_render (node_view($node, 'teaser'));
+  $teaser = drupal_render(node_view($node, 'teaser'));  //lt-tjs 2011June02 Coder:  Line 170: Functions should be called with no spaces between the function name and opening parentheses
   $form['preview'] = array(
     '#type' => 'value',
     '#value' => $teaser,
@@ -186,14 +186,14 @@ function modr8_response_form($form, $form_state, $node) {
 
 /**
  * Form submit handler - log author response.
- *
- * @see.modr8_response_form().
+ * lt-tjs 2011June02 Coder:  Line 190: (at)see should always be followed by a filename, a url or a function name with ()
+ * @see modr8_response_form()
  */
 function modr8_response_form_submit($form, &$form_state) {
   $form_state['values']['title'] = check_plain($form_state['values']['title']);
   $message = filter_xss(nl2br($form_state['values']['body']), array('br'));
   modr8_log_action('response', $form_state['values']['nid'], $form_state['values'], $message);
-  $form_state['redirect'] = 'node/'. $form_state['values']['nid'];
+  $form_state['redirect'] = 'node/' . $form_state['values']['nid'];//lt-tjs 2011June02 Coder:  Line 196: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
   drupal_set_message(t('Your response has been logged.'));
 }
 
@@ -210,12 +210,12 @@ function modr8_page() {
   $qry = db_select('modr8_moderate', 'm')
     ->extend('PagerDefault')
     ->limit(variable_get('modr8_nodes_per_page', 10))
-    ->fields ('n', array ('nid', 'changed'))
+    ->fields('n', array('nid', 'changed'))//lt-tjs 2011June02 Coder:  Line 213: Functions should be called with no spaces between the function name and opening parentheses
     ->condition('m.moderate', 1);
   $qry->join('node', 'n', 'n.nid = m.nid');
   $result = $qry->execute()->fetchAll();
 
-  $output['header'] = array (
+  $output['header'] = array(   //Line 218: Functions should be called with no spaces between the function name and opening parentheses
     '#type' => 'markup',
     '#markup' => '<p>' . l(t('Show log of all actions on moderated content.'), 'admin/reports/modr8') . '</p>',
   );
@@ -230,9 +230,9 @@ function modr8_page() {
     //$output .= theme('pager');
   }
   else {
-    $output['footer'] = array (
+    $output['footer'] = array(//lt-tjs 2011June02 Coder:  Line 233: Functions should be called with no spaces between the function name and opening parentheses
       '#type' => 'markup',
-      '#markup' => '<p>'. t('@items in moderation', array('@items' => format_plural(0, '1 post', '@count posts'))) .'</p>',
+      '#markup' => '<p>' . t('@items in moderation', array('@items' => format_plural(0, '1 post', '@count posts'))) . '</p>',//lt-tjs 2011June01 Coder:  Line 235: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
     );
   }
   return $output;
@@ -255,7 +255,7 @@ function modr8_form($form, $form_state, $nid_list = array()) {
     // for when it's being shown in the moderation list.
     $node->modr8_form_teaser = TRUE;
     $node->build_mode = NODE_BUILD_MODR8_TEASER;
-    $teaser = drupal_render (node_view($node, 'teaser'));
+    $teaser = drupal_render(node_view($node, 'teaser'));  //Line 258: Functions should be called with no spaces between the function name and opening parentheses
 
     $form[$node->nid] = array(
       '#tree' => TRUE,
@@ -292,7 +292,7 @@ function modr8_form($form, $form_state, $nid_list = array()) {
         $url = 'admin/reports/modr8/event/' . $events->fetchField();
       }
       else {
-        $url = 'node/'. $node->nid .'/modr8/';
+        $url = 'node/' . $node->nid . '/modr8/';//Line 295: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
       }
       $message = format_plural($count, 'See the 1 moderation log event for this post', 'Overview of the @count moderation log events for this post');
       $log_link .= l($message, $url);
@@ -348,7 +348,7 @@ function theme_modr8_form($variables) {
       $preview = $form[$key]['preview']['#value'];
 
       if (!empty($form[$key]['log_link']['#markup'])) {
-        $preview .= '<div><em>'. drupal_render($form[$key]['log_link']) .'</em></div>';
+        $preview .= '<div><em>' . drupal_render($form[$key]['log_link']) . '</em></div>';//lt-tjs 2011June02 Coder:  Line 351: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
       }
       $row[] = array(
         'data' => $preview,
@@ -519,7 +519,7 @@ function modr8_mail($key, &$message, $params) {
       // eval the replacements
       $replacements_raw = modr8_replacements();
       foreach ($replacements_raw as $key => $val) {
-        eval('$replacements["$key"] = '. $val .';');
+        eval('$replacements["$key"] = ' . $val . ';');//lt-tjs 2011June03 @see http://drupal.org/node/715010
       }
       $params['subject'] = strtr($params['subject'], $replacements);
       $params['message'] = strtr($params['message'], $replacements);

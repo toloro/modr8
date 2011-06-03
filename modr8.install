@@ -1,5 +1,5 @@
 <?php
-// $Id: modr8.install,v 1.5 2010/04/02 02:59:08 pwolanin Exp $
+// $Id: modr8.install,v 1.5 2010/04/02 02:59:08 pwolanin Exp $  Line 2: Commits to the Git repository do not require the CVS $Id$ keyword in each file.
 
 /**
  * @file
