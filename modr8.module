@@ -27,7 +27,10 @@ function modr8_help($path, $arg) {
  * An access function for Moderation Menu Tab
  */
 function modr8_moderation_access($node) {//Line 30: You may not want to use SELECT COUNT(*), if all you want to do is check for the existance of any rows, rather than the actualy numer of rows.
-  return user_access('moderate content') && db_query("SELECT COUNT(*) FROM {modr8_log} ml WHERE ml.nid = :nid", array(':nid' => $node->nid))->fetchField();
+  //return user_access('moderate content') && db_query("SELECT COUNT(*) FROM {modr8_log} ml WHERE ml.nid = :nid", array(':nid' => $node->nid))->fetchField();
+  return user_access('moderate content') && (bool)(db_query_range('SELECT 1 FROM {modr8_log} ml WHERE ml.nid = :nid',0,1, array(':nid' => $node->nid))->fetchField());
+  
+  //$has_rows = (bool) db_query_range('SELECT 1 FROM {mytable}', 0, 1)->fetchField();  @see http://drupal.org/node/224333#select_count
 }
 
 /**
@@ -255,6 +258,43 @@ function modr8_form_alter(&$form, $form_state, $form_id) {
   }
 }
 
+function modr8_query_alter(QueryAlterableInterface $query){
+  
+   if ($query->hasTag('node_access')) {
+     
+     echo "Hello.";
+    //$query->range(0, 2);
+  }
+  
+  //$aTag = (bool)$query->hasAnyTag();
+  
+    $node_table = $primary_table;
+  switch ($primary_field) {
+    case 'nid':
+      // this query deals with node objects
+      $access = (user_access('administer nodes') || user_access('moderate content'));
+      if (!$access && $query) {
+        global $user;
+        $return = array();
+        if ($primary_table != 'n') {
+          $return['join'] = "LEFT JOIN {node} modr_n ON $primary_table.nid = modr_n.nid";
+          $node_table = 'modr_n';
+        }
+        if ($user->uid == 0) {
+          $return['where'] = "($node_table.moderate != 1)";
+        }
+        else {//lt-tjs 2011June02 Coder:  Line 278: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
+          $return['where'] = "($node_table.moderate != 1 OR $node_table.uid = " . (int)$user->uid . ")";
+        }
+        return $return;
+      }
+      break;
+
+  }
+  
+  
+  
+}
 /**
  * Implements hook_db_rewrite_sql().
  */
@@ -318,12 +358,51 @@ function modr8_block_view($delta) {
     if ($delta == 'modr8-moderators') {
       $block = array();
       $cutoff = strtotime('now -6 months');// tjs-lt 2011June03  Removed prefixes from placeholders in db query below.
-      $result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :action AND ml.timestamp > :timestamp AND u.status = :status GROUP BY u.uid ORDER BY number DESC", array(':action' => 'Response', ':timestamp' => $cutoff, ':status' => 1));//$result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :ml.action AND ml.timestamp > :ml.timestamp AND u.status = :u.status GROUP BY u.uid ORDER BY number DESC", array(':ml.action' => 'Response', ':ml.timestamp' => $cutoff, ':u.status' => 1));
+      //$result_original = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :action AND ml.timestamp > :timestamp AND u.status = :status GROUP BY u.uid ORDER BY number DESC", array(':action' => 'Response', ':timestamp' => $cutoff, ':status' => 1));//$result = db_query_range("SELECT COUNT(ml.modid) AS number, u.* FROM {modr8_log} ml INNER JOIN {users} u on u.uid = ml.uid WHERE ml.action != :ml.action AND ml.timestamp > :ml.timestamp AND u.status = :u.status GROUP BY u.uid ORDER BY number DESC", array(':ml.action' => 'Response', ':ml.timestamp' => $cutoff, ':u.status' => 1));
+      
+      $query = db_select('modr8_log', 'ml');
+      $query->fields('ml', array('modid'));// 'u.*'));
+      $query->addExpression('COUNT(ml.modid)', 'number');
+      $query->addTag('node_access');
+      
+      $query->innerJoin('users', 'u', 'u.uid = ml.uid');
+      $query->fields('u');
+     
+      $query->where('ml.action != :action', array(':action' => 'Response'));
+      $query->where('ml.timestamp > :timestamp', array(':timestamp' => $cutoff));
+      $query->where('u.status = :status', array(':status' => 1));
+      
+      $query->groupBy('u.uid');
+      $query->orderBy('ml.modid', 'DESC');
+      $results = $query->execute();
+      
+      
+      /**
+       * 
+       *     $query->innerJoin('node', 'n', 'base.nid = n.nid');
+    $query->addField('n', 'type', 'node_type');
+    $query->innerJoin('users', 'u', 'base.uid = u.uid');
+    $query->addField('u', 'name', 'registered_name');
+    $query->fields('u', array('uid', 'signature', 'signature_format', 'picture'));
+       * 
+       * 
+       * 
+       * 
+       */
+      
+              
+      
       $header = array(t('User'), t('Number of actions'));
       $rows = array();
-      while ($account = db_fetch_object($result)) {
+      
+      //foreach($results as $result){
+      foreach($results as $account){
+        //$account = $result->fetchObject();
         $rows[] = array(theme('username', array('account' => $account)), $account->number);
       }
+      /*while ($account = db_fetch_object($result)) {
+        $rows[] = array(theme('username', array('account' => $account)), $account->number);
+      }*/
       if ($rows) {
         $block['content'] = t('Last 6 months:') . '<br />' . theme('table', array('header' => $header, 'rows' => $rows));
         $block['subject'] = t('Top moderators');
@@ -335,10 +414,31 @@ function modr8_block_view($delta) {
       $is_published = '';
       if (!user_access('administer nodes')) {
         // Users who don't have the 'administer nodes' permission can only see published nodes.
+        //$is_published = 'n.status = 1 AND ';
         $is_published = 'n.status = 1 AND ';
       }
       // TODO Please convert this statement to the D7 database API syntax.
-      $count = db_query(db_rewrite_sql('SELECT COUNT(*) FROM {node} n WHERE ' . $is_published . ' n.moderate = 1'))->fetchField();
+      //$count = db_query(db_rewrite_sql('SELECT COUNT(*) FROM {node} n WHERE ' . $is_published . ' n.moderate = 1'))->fetchField();
+      
+      //tjs 2011June08 
+      //$has_rows = (bool) db_query_range('SELECT 1 FROM {node}', 0, 1)->fetchField();
+      
+      $query = db_select('node', 'n');//tjs-lt 2011June9  converted to the D7 database API syntax.
+      $query->fields('n', array('status'));
+      $query->join('modr8_moderate', 'mm', 'n.nid = mm.nid');
+      
+      if (!user_access('administer nodes')) {
+        
+              $query->where("n.status = :status", array( ':status' => 1));
+      }
+      
+      $query->where("mm.moderate = :moderate", array(':moderate' => 1));
+      $query->range(0,1);
+      $query->addTag('node_access');
+      $result_0 = $query->execute();
+      
+      $count = $result_0->rowCount();
+      
       $content = '<p>' . l(t('@items in moderation', array('@items' => format_plural($count, '1 post', '@count posts'))), 'admin/content/modr8') . '</p>'; //lt-tjs 2011June02 Coder:  Line 342: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
       if ($count) { //lt-tjs 2011June02 Coder:  Line 343: There should be no trailing spaces
         $sql = db_rewrite_sql('SELECT n.nid, n.title FROM {node} n WHERE ' . $is_published . ' n.moderate = 1 ORDER BY n.changed DESC'); //Line 344: String concatenation should be formatted with a space separating the operators (dot .) and the surrounding terms
